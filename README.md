@@ -54,7 +54,7 @@ The time window (in seconds) within which multiple requests from the same IP add
 The minimum number of requests from a single IP address within the timeframe to trigger a potential DDoS alert.
 #### additional_threshold
 An additional threshold for the total number of requests from all IPs within the additional_timeframe to trigger a potential DDoS alert.
-#### additional_timeframe
-An additional time frame (in minutes) within which the additional_threshold is checked for a potential DDoS attack.
+~~#### additional_timeframe
+An additional time frame (in minutes) within which the additional_threshold is checked for a potential DDoS attack.~~
 #### bantime
 Set time in seconds for csf firewall ban
