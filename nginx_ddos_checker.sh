@@ -112,9 +112,13 @@ check_logs() {
         echo "$dist_comment"
         # Add temp ban to csf firewall
         if $CSF; then
-          csf --tempdeny "$ip_cidr.0.0/24" "$dist_comment" >/dev/null 2>&1
-          echo "🚫 Banned CIDR $ip_cidr.0.0 from IP $ip for $bantime seconds in csf firewall."
-          echo
+          if csf -g "$ip" | grep "No matches found" >/dev/null 2>&1; then
+            csf --tempdeny "$ip_cidr.0.0/24" "$dist_comment" >/dev/null 2>&1
+            echo "🚫 Banned CIDR $ip_cidr.0.0 from IP $ip for $bantime seconds in csf firewall."
+            echo
+          else
+            echo "IP is temporarily banned already."
+          fi
         fi
         # Send report to AbuseIPDB if higher than abuseipdb confidense score limit
         if $abuseipdb_report; then
@@ -157,14 +161,14 @@ while true; do
   # Check logs for DDoS attacks for each domain
   for domain in "${virtual_hosts[@]}"; do
     if [[ "$excluded_domains" =~ "$domain" ]]; then
-        echo "Skipping $domain as it is excluded."
+      echo "Skipping $domain as it is excluded."
     else
-    check_logs "$domain" \
-    "$nginx_logs_path/$domain"_access_log \
-    "$timeframe" \
-    "$threshold" \
-    "$additional_threshold" \
-    "$additional_timeframe"
+      check_logs "$domain" \
+        "$nginx_logs_path/$domain"_access_log \
+        "$timeframe" \
+        "$threshold" \
+        "$additional_threshold" \
+        "$additional_timeframe"
     fi
   done
   echo
