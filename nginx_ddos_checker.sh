@@ -107,6 +107,9 @@ check_logs() {
           fi
         fi
         if [[ $nginx_cidr == "true" ]]; then
+          if [ -f "$nginx_cidr_blocklist" ]; then
+            touch "$nginx_cidr_blocklist"
+          fi
           # Add ip to nginx cidr blocklist if not found
           if ! grep -qw "$ip_cidr.0.0/24" "$nginx_cidr_blocklist"; then
             sed -i "/$ip_cidr.0.0\/24/d" "$nginx_cidr_blocklist"
@@ -119,6 +122,9 @@ check_logs() {
           fi
         fi
         if [[ $nginx_block == "true" ]]; then
+          if [ -f "$nginx_blocklist" ]; then
+            touch "$nginx_blocklist"
+          fi
           # Add ip to nginx blocklist if not found
           if ! grep -qw "$ip" "$nginx_blocklist"; then
             sed -i "/$ip/d" "$nginx_blocklist"
@@ -205,6 +211,8 @@ while true; do
           mv "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv "$abuseipdb_log_folder"/abuseipdb_bulk_report_"$currenttime".csv
         fi
       fi
+    else
+      echo "AbuseIPDB bulk report will be submitted at $abuseipdb_interval o'clock."
     fi
   fi
   end_check=$(date)
