@@ -149,8 +149,8 @@ check_logs() {
 # Main script
 config_file="$(pwd)/nginx_ddos_checker.ini"
 
-if [[ ! -f "$config_file" ]]; then
-  cp -rp "example_$config_file" "$config_file" || echo "Error: Configuration file $config_file not found."; exit 1;
+if [[ ! -f "$(pwd)/$config_file" ]]; then
+  cp -rp "$(pwd)/example_$config_file" "$(pwd)/$config_file" || echo "Error: Configuration file $(pwd)/$config_file not found."; exit 1;
 fi
 
 # Read configurations from the INI file
