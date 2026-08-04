@@ -8,12 +8,6 @@ then
   set -o xtrace
 fi
 
-if [[ $(command -v 'csf') ]]; then
-  csf=true
-else
-  echo "csf is not installed..."
-fi
-
 abuseipdb_bulk_report() {
   category="4,19,21"
   abuseipdb_report_time=$(date +"%Y-%m-%dT%H:%M:%S%z")
@@ -101,7 +95,7 @@ check_logs() {
         || [[ "$distributed_requests_1" -gt "$distributed_requests" ]]; then
         comment="$comment; $dist_comment"
         echo "ℹ️  $dist_comment"
-        if $csf; then
+        if [[ $csf == "true" ]]; then
           if csf -g "$ip_cidr.0.0/24" | grep "No matches found" >/dev/null 2>&1; then
             csf --tempdeny "$ip_cidr.0.0/24" "$dist_comment" >/dev/null 2>&1
             echo
@@ -112,7 +106,7 @@ check_logs() {
             #   echo
           fi
         fi
-        if $nginx_cidr; then
+        if [[ $nginx_cidr == "true" ]]; then
           # Add ip to nginx cidr blocklist if not found
           if ! grep -qw "$ip_cidr.0.0/24" "$nginx_cidr_blocklist"; then
             sed -i "/$ip_cidr.0.0\/24/d" "$nginx_cidr_blocklist"
@@ -124,7 +118,7 @@ check_logs() {
             #   echo "ℹ️  IP CIDR $ip_cidr.0.0/24 has been banned in the Nginx CIDR blocklist already."
           fi
         fi
-        if $nginx_block; then
+        if [[ $nginx_block == "true" ]]; then
           # Add ip to nginx blocklist if not found
           if ! grep -qw "$ip" "$nginx_blocklist"; then
             sed -i "/$ip/d" "$nginx_blocklist"
@@ -135,7 +129,7 @@ check_logs() {
             #   echo "ℹ️  IP $ip has been banned in the Nginx blocklist already."
           fi
         fi
-        if $abuseipdb_report; then
+        if [[ $abuseipdb_report == "true" ]]; then
           abuseipdb_bulk_report
           sleep 0.1
         fi
@@ -168,11 +162,14 @@ abuseipdb_token=$(awk -F "=" '/^abuseipdb_token/ {print $2}' "$config_file")
 abuseipdb_report=$(awk -F "=" '/^abuseipdb_report/ {print $2}' "$config_file")
 abuseipdb_log_folder=$(awk -F "=" '/^abuseipdb_log_folder/ {print $2}' "$config_file")
 abuseipdb_bulk_report_interval=$(awk -F "=" '/^abuseipdb_bulk_report_interval/ {print $2}' "$config_file")
-
+csf=$(awk -F "=" '/^csf/ {print $2}' "$config_file")
+# Check if csf is installed
+if ! [[ $(command -v 'csf') ]]; then
+  echo "csf is not installed..."
+fi
 # AbuseIPDB
 # Set your AbuseIPDB API key here.
 abuseipdb_token=$(< "$abuseipdb_token")
-
 # Check available parked domains in Nginx
 virtual_hosts=($(ls "$nginx_logs_path" | grep -E '_access_log' | sed -E 's/^_access_log//g' | grep -v '.gz' | sed "s|_access_log||g"))
 while true; do
@@ -187,6 +184,7 @@ while true; do
       check_logs "$domain" "$nginx_logs_path/$domain"_access_log "$timeframe" "$threshold" "$attack_url" "$additional_threshold" "$additional_timeframe"
     fi
   done
+  # Get current time
   currenttime=$(date +%H:%M)
   if $abuseipdb_report; then
     # Get report date from first in report
