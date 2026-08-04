@@ -22,19 +22,19 @@ abuseipdb_bulk_report() {
     mkdir -p "$abuseipdb_log_folder"
   fi
   # Generate csv
-  if ! [ -f $abuseipdb_log_folder/abuseipdb_bulk_report.csv ]; then
-    touch $abuseipdb_log_folder/abuseipdb_bulk_report.csv
+  if ! [ -f "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv ]; then
+    touch "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv
     # Add csv header
-    if ! grep "IP,Categories,ReportDate,Comment" $abuseipdb_log_folder/abuseipdb_bulk_report.csv >/dev/null 2>&1; then
-      tee $abuseipdb_log_folder/abuseipdb_bulk_report.csv <<'EOF' >/dev/null
+    if ! grep "IP,Categories,ReportDate,Comment" "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv >/dev/null 2>&1; then
+      tee "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv <<'EOF' >/dev/null
 IP,Categories,ReportDate,Comment
 EOF
     fi
   fi
   # Add ip's to csv bulk report
-  if ! grep "${ip}" $abuseipdb_log_folder/abuseipdb_bulk_report.csv >/dev/null 2>&1; then
+  if ! grep "${ip}" "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv >/dev/null 2>&1; then
     # Add ip, catecories, report time and log to csv
-    echo "${ip},\"${category}\",${abuseipdb_report_time},\"${comment}\"" >> $abuseipdb_log_folder/abuseipdb_bulk_report.csv
+    echo "${ip},\"${category}\",${abuseipdb_report_time},\"${comment}\"" >> "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv
     echo "🚫 IP ${ip} has been added to the bulk report."
   else
     echo "ℹ️  IP ${ip} with report date ${abuseipdb_report_time} already exist in the bulk report."
@@ -43,10 +43,10 @@ EOF
 
 abuseipdb_submit_bulk_report() {
   curl https://api.abuseipdb.com/api/v2/bulk-report \
-    -F csv=@$abuseipdb_log_folder/abuseipdb_bulk_report.csv \
+    -F csv=@"$abuseipdb_log_folder"/abuseipdb_bulk_report.csv \
     -H "Key: $abuseipdb_token" \
     -H "Accept: application/json" \
-    > $abuseipdb_log_folder/abuseipdb_bulk_report_"${abuseipdb_report_time}".json
+    > "$abuseipdb_log_folder"/abuseipdb_bulk_report_"${abuseipdb_report_time}".json
 }
 
 # Function to check logs for DDoS attacks
