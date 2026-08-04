@@ -16,6 +16,24 @@ fi
 abuseipdb_bulk_report() {
   category="4,19,21"
   abuseipdb_report_time=$(date +"%Y-%m-%dT%H:%M:%S%z")
+  # Strip server IP from log
+  if echo "$ip_logs" | grep -Eq $excluded_ips; then
+    echo "ℹ️  Stripped $excluded_ips from logs..."
+    ip_logs=$(echo "$ip_logs" | sed "s/$excluded_ips/*.*.*.*/g")
+  fi
+  # Strip server domain from log
+  if echo "$ip_logs" | grep -Eq $domain; then
+    echo "ℹ️  Removed $domain from logs..."
+    ip_logs=$(echo "$ip_logs" | sed "s/$domain/*.*/g")
+  fi
+  ip_logs=$(echo "$ip_logs" | sed "s/\"/\\\\\"/g")
+  comment="$comment; Logs: $(echo "$ip_logs" | tr '\n' ' ')"
+  # Truncate comment
+  # Source: https://linuxgenie.net/truncate-string-variable-in-bash
+  if [[ ${#comment} > 1024 ]]; then
+    echo "ℹ️  Truncated comment to 1024 characters..."
+    comment=${comment:0:1024}
+  fi
   # Create directory if it doesn't exist
   if ! [ -d "$abuseipdb_log_folder" ]; then
     mkdir -p "$abuseipdb_log_folder"
@@ -76,7 +94,7 @@ check_logs() {
     # Count total number of attacks
     # total_requests=$(cat "$log_file" | grep -c "$ip")
     # Extract relevant logs for the current IP
-    # ip_logs=$(cat "$log_file" | grep "$ip")
+    ip_logs=$(cat "$log_file" | grep "$ip")
     # Get first two groups
     ip_cidr_1=$(echo "$ip" | cut -d '.' -f1)
     ip_cidr_2=$(echo "$ip" | cut -d '.' -f2)
