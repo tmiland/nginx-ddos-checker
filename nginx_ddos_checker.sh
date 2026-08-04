@@ -160,7 +160,7 @@ if [[ ! -f "$config_file" ]]; then
   || echo "Error: Configuration file $config_file not found."; exit 1;
 fi
 config_grep() {
-      grep -oP ''"$1"'=\K.*' "$config_file"
+      grep -Pow ''"$1"'=\K.*' "$config_file"
     }
 # Read configurations from the INI file
 nginx_logs_path=$(config_grep nginx_logs_path)
