@@ -214,7 +214,8 @@ while true; do
         fi
       fi
     else
-      echo "AbuseIPDB bulk report will be submitted at $abuseipdb_interval o'clock."
+      echo
+      echo "⌚ AbuseIPDB bulk report will be submitted at $abuseipdb_interval o'clock."
     fi
   fi
   end_check=$(date)
