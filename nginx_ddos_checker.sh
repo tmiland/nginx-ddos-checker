@@ -96,6 +96,8 @@ check_logs() {
       if ! [[ "$time_frame_requests" -lt "$distributed_requests" ]]; then
         continue
       fi
+      # If distributed requests 1 & 2 combined are above threshold or
+      # ip group 1 has more requests than 1 & 2 combined
       if [[ "$distributed_requests" -gt "$additional_threshold" ]] \
         || [[ "$distributed_requests_1" -gt "$distributed_requests" ]]; then
         comment="$comment; $dist_comment"
@@ -108,7 +110,6 @@ check_logs() {
             echo
           else
             echo "ℹ️  IP CIDR $ip_cidr.0.0/24 is temporarily banned in csf firewall already."
-            echo
           fi
         fi
         if [[ $nginx_cidr == "true" ]]; then
@@ -123,7 +124,6 @@ check_logs() {
             echo
           else
             echo "ℹ️  IP CIDR $ip_cidr.0.0/24 has been banned in the Nginx CIDR blocklist already."
-            echo
           fi
         fi
         if [[ $nginx_block == "true" ]]; then
@@ -138,7 +138,6 @@ check_logs() {
             echo
           else
             echo "ℹ️  IP $ip has been banned in the Nginx blocklist already."
-            echo
           fi
         fi
         if [[ $abuseipdb_report == "true" ]]; then
