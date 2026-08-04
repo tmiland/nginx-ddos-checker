@@ -101,9 +101,9 @@ check_logs() {
             echo
             echo "🚫 Banned IP CIDR $ip_cidr.0.0 from IP $ip for $bantime seconds in csf firewall."
             echo
-            # else
-            #   echo "ℹ️  IP CIDR $ip_cidr.0.0/24 is temporarily banned in csf firewall already."
-            #   echo
+          else
+            echo "ℹ️  IP CIDR $ip_cidr.0.0/24 is temporarily banned in csf firewall already."
+            echo
           fi
         fi
         if [[ $nginx_cidr == "true" ]]; then
@@ -117,8 +117,9 @@ check_logs() {
             echo "🚫 IP CIDR $ip_cidr.0.0/24 has been added to the Nginx CIDR blocklist."
             echo
             >/dev/null 2>&1 nginx -t && systemctl reload nginx && echo "Nginx has been reloaded."
-            # else
-            #   echo "ℹ️  IP CIDR $ip_cidr.0.0/24 has been banned in the Nginx CIDR blocklist already."
+          else
+            echo "ℹ️  IP CIDR $ip_cidr.0.0/24 has been banned in the Nginx CIDR blocklist already."
+            echo
           fi
         fi
         if [[ $nginx_block == "true" ]]; then
@@ -131,8 +132,9 @@ check_logs() {
             echo "$ip" | tee >> "$nginx_blocklist"
             echo "🚫 IP $ip has been added to the Nginx blocklist."
             echo
-            # else
-            #   echo "ℹ️  IP $ip has been banned in the Nginx blocklist already."
+          else
+            echo "ℹ️  IP $ip has been banned in the Nginx blocklist already."
+            echo
           fi
         fi
         if [[ $abuseipdb_report == "true" ]]; then
