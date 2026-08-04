@@ -121,7 +121,6 @@ check_logs() {
             echo "$ip_cidr.0.0/24 1;" | tee >> "$nginx_cidr_blocklist"
             echo "🚫 IP CIDR $ip_cidr.0.0/24 has been added to the Nginx CIDR blocklist."
             echo
-            >/dev/null 2>&1 nginx -t && systemctl reload nginx && echo "Nginx has been reloaded."
           else
             echo "ℹ️  IP CIDR $ip_cidr.0.0/24 has been banned in the Nginx CIDR blocklist already."
             echo
@@ -157,11 +156,11 @@ example_config_file=""${SCRIPT_DIR}/example_nginx_ddos_checker.ini""
 
 if [[ ! -f "$config_file" ]]; then
   cp -rp "$example_config_file" "$config_file" \
-  || echo "Error: Configuration file $config_file not found."; exit 1;
+    || echo "Error: Configuration file $config_file not found."; exit 1;
 fi
 config_grep() {
-      grep -Pow ''"$1"'=\K.*' "$config_file"
-    }
+  grep -Pow ''"$1"'=\K.*' "$config_file"
+}
 # Read configurations from the INI file
 nginx_logs_path=$(config_grep nginx_logs_path)
 nginx_blocklist=$(config_grep nginx_blocklist)
@@ -182,7 +181,7 @@ abuseipdb_bulk_report_interval=$(config_grep abuseipdb_bulk_report_interval)
 csf=$(config_grep csf)
 # Check if csf is installed
 if ! [[ $(command -v 'csf') ]]; then
-  echo "csf is not installed..."
+  echo "ℹ️  csf is not installed..."
 fi
 # AbuseIPDB
 # Set your AbuseIPDB API key here.
@@ -196,11 +195,16 @@ while true; do
   # Check logs for DDoS attacks for each domain
   for domain in "${virtual_hosts[@]}"; do
     if [[ "$excluded_domains" =~ "$domain" ]]; then
-      echo "Skipping $domain as it is excluded."
+      echo "ℹ️  Skipping $domain as it is excluded."
     else
       check_logs "$domain" "$nginx_logs_path/$domain"_access_log "$timeframe" "$threshold" "$attack_url" "$additional_threshold" "$additional_timeframe"
     fi
   done
+
+  if [[ "$csf" == "true" ]]; then
+    >/dev/null 2>&1 nginx -t && systemctl restart nginx && echo "ℹ️  Nginx has been restarted."
+  fi
+
   # Get current time
   currenttime=$(date +%H:%M)
   if $abuseipdb_report; then
@@ -215,7 +219,7 @@ while true; do
     if [[ "$currenttime" > "$abuseipdb_interval" ]]; then
       if [[ -f $abuseipdb_log_folder/abuseipdb_bulk_report.csv ]]; then
         # Submit abuseipdb bulk report
-        echo "Submitting AbuseIPDB bulk report."
+        echo "ℹ️  Submitting AbuseIPDB bulk report."
         abuseipdb_submit_bulk_report
         if [ $? -eq 0 ]; then
           echo "Ok."
