@@ -145,9 +145,11 @@ check_logs() {
 }
 
 # Main script
-config_file="ddos_checker.ini"
+config_file="nginx_ddos_checker.ini"
 
 if [[ ! -f "$config_file" ]]; then
+  cp -rp "example_$config_file" "$config_file"
+else
   echo "Error: Configuration file $config_file not found."
   exit 1
 fi
