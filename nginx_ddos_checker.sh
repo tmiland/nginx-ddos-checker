@@ -153,9 +153,11 @@ check_logs() {
 
 # Main script
 config_file="${SCRIPT_DIR}/nginx_ddos_checker.ini"
+example_config_file=""${SCRIPT_DIR}/example_nginx_ddos_checker.ini""
 
-if [[ ! -f "${SCRIPT_DIR}/$config_file" ]]; then
-  cp -rp "${SCRIPT_DIR}/example_$config_file" "${SCRIPT_DIR}/$config_file" || echo "Error: Configuration file ${SCRIPT_DIR}/$config_file not found."; exit 1;
+if [[ ! -f "$config_file" ]]; then
+  cp -rp "$example_config_file" "$config_file" \
+  || echo "Error: Configuration file $config_file not found."; exit 1;
 fi
 
 # Read configurations from the INI file
