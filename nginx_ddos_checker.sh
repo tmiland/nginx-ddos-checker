@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# Detect absolute and full path
+sfp=$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || greadlink -f "${BASH_SOURCE[0]}" 2>/dev/null)
+if [ -z "$sfp" ]; then sfp=${BASH_SOURCE[0]}; fi
+SCRIPT_DIR=$(dirname "${sfp}")
+
 if [[ $* =~ "debug" ]]
 then
   set -o errexit
@@ -147,10 +152,10 @@ check_logs() {
 }
 
 # Main script
-config_file="$(pwd)/nginx_ddos_checker.ini"
+config_file="${SCRIPT_DIR}/nginx_ddos_checker.ini"
 
-if [[ ! -f "$(pwd)/$config_file" ]]; then
-  cp -rp "$(pwd)/example_$config_file" "$(pwd)/$config_file" || echo "Error: Configuration file $(pwd)/$config_file not found."; exit 1;
+if [[ ! -f "${SCRIPT_DIR}/$config_file" ]]; then
+  cp -rp "${SCRIPT_DIR}/example_$config_file" "${SCRIPT_DIR}/$config_file" || echo "Error: Configuration file ${SCRIPT_DIR}/$config_file not found."; exit 1;
 fi
 
 # Read configurations from the INI file
