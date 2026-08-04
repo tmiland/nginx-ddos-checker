@@ -121,8 +121,8 @@ check_logs() {
             #   echo "ℹ️  IP CIDR $ip_cidr.0.0/24 has been banned in the Nginx CIDR blocklist already."
           fi
         fi
-        if ! [[ $nginx_block == "true" ]]; then
-          if [ -f "$nginx_blocklist" ]; then
+        if [[ $nginx_block == "true" ]]; then
+          if ! [ -f "$nginx_blocklist" ]; then
             touch "$nginx_blocklist"
           fi
           # Add ip to nginx blocklist if not found
