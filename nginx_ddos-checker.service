@@ -1,0 +1,11 @@
+[Unit]
+Description=Nginx DDoS Checker Service
+After=network.service
+
+[Service]
+Type=simple
+ExecStart=screen -DmS nginx_ddos_checker /bin/bash -c '/root/scripts/nginx-ddos-checker/nginx_ddos_checker.sh; exec bash'
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
