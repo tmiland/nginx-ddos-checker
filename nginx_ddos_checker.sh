@@ -159,25 +159,27 @@ if [[ ! -f "$config_file" ]]; then
   cp -rp "$example_config_file" "$config_file" \
   || echo "Error: Configuration file $config_file not found."; exit 1;
 fi
-
+config_grep() {
+      grep -oP ''"$1"'=\K.*' "$config_file"
+    }
 # Read configurations from the INI file
-nginx_logs_path=$(awk -F "=" '/^nginx_logs_path/ {print $2}' "$config_file")
-nginx_blocklist=$(awk -F "=" '/^nginx_blocklist/ {print $2}' "$config_file")
-nginx_block=$(awk -F "=" '/^nginx_block/ {print $2}' "$config_file")
-nginx_cidr_blocklist=$(awk -F "=" '/^nginx_cidr_blocklist/ {print $2}' "$config_file")
-nginx_cidr=$(awk -F "=" '/^nginx_cidr/ {print $2}' "$config_file")
-excluded_domains=$(awk -F "=" '/^excluded_domains/ {print $2}' "$config_file")
-excluded_ips=$(awk -F "=" '/^excluded_ips/ {print $2}' "$config_file")
-timeframe=$(awk -F "=" '/^timeframe/ {print $2}' "$config_file")
-threshold=$(awk -F "=" '/^threshold/ {print $2}' "$config_file")
-additional_threshold=$(awk -F "=" '/^additional_threshold/ {print $2}' "$config_file")
-additional_timeframe=$(awk -F "=" '/^additional_timeframe/ {print $2}' "$config_file")
-bantime=$(awk -F "=" '/^bantime/ {print $2}' "$config_file")
-abuseipdb_token=$(awk -F "=" '/^abuseipdb_token/ {print $2}' "$config_file")
-abuseipdb_report=$(awk -F "=" '/^abuseipdb_report/ {print $2}' "$config_file")
-abuseipdb_log_folder=$(awk -F "=" '/^abuseipdb_log_folder/ {print $2}' "$config_file")
-abuseipdb_bulk_report_interval=$(awk -F "=" '/^abuseipdb_bulk_report_interval/ {print $2}' "$config_file")
-csf=$(awk -F "=" '/^csf/ {print $2}' "$config_file")
+nginx_logs_path=$(config_grep nginx_logs_path)
+nginx_blocklist=$(config_grep nginx_blocklist)
+nginx_block=$(config_grep nginx_block)
+nginx_cidr_blocklist=$(config_grep nginx_cidr_blocklist)
+nginx_cidr=$(config_grep nginx_cidr)
+excluded_domains=$(config_grep excluded_domains)
+excluded_ips=$(config_grep excluded_ips)
+timeframe=$(config_grep timeframe)
+threshold=$(config_grep threshold)
+additional_threshold=$(config_grep additional_threshold)
+additional_timeframe=$(config_grep additional_timeframe)
+bantime=$(config_grep bantime)
+abuseipdb_token=$(config_grep abuseipdb_token)
+abuseipdb_report=$(config_grep abuseipdb_report)
+abuseipdb_log_folder=$(config_grep abuseipdb_log_folder)
+abuseipdb_bulk_report_interval=$(config_grep abuseipdb_bulk_report_interval)
+csf=$(config_grep csf)
 # Check if csf is installed
 if ! [[ $(command -v 'csf') ]]; then
   echo "csf is not installed..."
