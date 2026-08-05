@@ -68,8 +68,8 @@ abuseipdb_submit_bulk_report() {
 
 tcp_kill() {
   # execute tcpkill for 60 seconds
-  >/dev/null 2>&1 timeout -k 60 -s 9 60 \
-    tcpkill -9 host "$ip" && echo "tcpkill executed on IP $ip for 60 seconds."
+  timeout -k 60 -s 9 60 \
+    tcpkill -9 host "$ip" >/dev/null 2>&1 &
 }
 
 # Function to check logs for DDoS attacks
@@ -130,6 +130,7 @@ check_logs() {
           # Run tcpkill on ip
           if [[ $tcp_kill == "true" ]]; then
             tcp_kill
+            echo "ℹ️  tcpkill executed on IP $ip for 60 seconds."
           fi
           # Tempban ip in csf
           if csf -g "$ip_cidr.0.0/24" | grep "No matches found" >/dev/null 2>&1; then
