@@ -78,9 +78,8 @@ check_logs() {
   local log_file="$2"
   local timeframe="$3"
   local threshold="$4"
-  local attack_url="$5"
-  local additional_threshold="$6"
-  local additional_timeframe="$7"
+  local additional_threshold="$5"
+  local additional_timeframe="$6"
 
   echo "✅ Checking logs for $domain"
 
@@ -227,7 +226,7 @@ while true; do
     if [[ "$excluded_domains" =~ "$domain" ]]; then
       echo "ℹ️  Skipping $domain as it is excluded."
     else
-      check_logs "$domain" "$nginx_logs_path/$domain"_access_log "$timeframe" "$threshold" "$attack_url" "$additional_threshold" "$additional_timeframe"
+      check_logs "$domain" "$nginx_logs_path/$domain"_access_log "$timeframe" "$threshold" "$additional_threshold" "$additional_timeframe"
     fi
   done
 
