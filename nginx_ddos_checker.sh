@@ -59,7 +59,7 @@ EOF
 }
 
 abuseipdb_submit_bulk_report() {
-  curl https://api.abuseipdb.com/api/v2/bulk-report \
+  curl -s https://api.abuseipdb.com/api/v2/bulk-report \
     -F csv=@"$abuseipdb_log_folder"/abuseipdb_bulk_report.csv \
     -H "Key: $abuseipdb_token" \
     -H "Accept: application/json" \
