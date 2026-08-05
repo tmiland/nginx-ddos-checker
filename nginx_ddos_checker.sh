@@ -68,7 +68,7 @@ abuseipdb_submit_bulk_report() {
 
 tcp_kill() {
   # execute tcpkill for 60 seconds
-  timeout -k 60 -s 9 60 \
+  timeout --foreground -k 60 -s 9 60 \
     tcpkill -9 host "$ip" >/dev/null 2>&1 &
 }
 
