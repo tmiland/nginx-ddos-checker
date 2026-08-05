@@ -66,6 +66,12 @@ abuseipdb_submit_bulk_report() {
     > "$abuseipdb_log_folder"/abuseipdb_bulk_report_"${abuseipdb_report_time}".json
 }
 
+tcp_kill() {
+  # execute tcpkill for 60 seconds
+  >/dev/null 2>&1 timeout -k 60 -s 9 60 \
+    tcpkill -9 host "$ip" && echo "tcpkill executed on IP $ip for 60 seconds."
+}
+
 # Function to check logs for DDoS attacks
 check_logs() {
   local domain="$1"
@@ -121,6 +127,11 @@ check_logs() {
         comment="$comment; $dist_comment"
         echo "ℹ️  $dist_comment"
         if [[ $csf == "true" ]]; then
+          # Run tcpkill on ip
+          if [[ $tcp_kill == "true" ]]; then
+            tcp_kill
+          fi
+          # Tempban ip in csf
           if csf -g "$ip_cidr.0.0/24" | grep "No matches found" >/dev/null 2>&1; then
             csf --tempdeny "$ip_cidr.0.0/24" "$dist_comment" >/dev/null 2>&1
             echo
@@ -196,6 +207,7 @@ abuseipdb_report=$(config_grep abuseipdb_report)
 abuseipdb_log_folder=$(config_grep abuseipdb_log_folder)
 abuseipdb_bulk_report_interval=$(config_grep abuseipdb_bulk_report_interval)
 csf=$(config_grep csf)
+tcp_kill=$(config_grep tcp_kill)
 # Check if csf is installed
 if ! [[ $(command -v 'csf') ]]; then
   echo "ℹ️  csf is not installed..."
