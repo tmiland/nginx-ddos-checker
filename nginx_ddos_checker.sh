@@ -83,7 +83,7 @@ check_logs() {
 
   echo "✅ Checking logs for $domain"
 
-  log_time_frame=$(awk -v d1="$(date --date '-'"$timeframe"' min' '+%d/%b/%Y:%T')" '{gsub(/^[\[\t]+/, "", $4);}; $4 > d1' "$log_file")
+  log_time_frame=$(awk -v d1="$(date --date 'now -'"$timeframe"' min' '+%d/%b/%Y:%T')" '{gsub(/^[\[\t]+/, "", $4);}; $4 > d1' "$log_file")
   ips=$(echo "$log_time_frame" | grep -oP '(([0-9]{1,3}\.){3}[0-9]{1,3})' | sort -u)
 
   # Loop through all unique IPs and send the data to AbuseIPDB
