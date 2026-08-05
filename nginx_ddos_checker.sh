@@ -85,7 +85,7 @@ check_logs() {
 
   # start_time="$(date -d 'now - 1 hour' +'%s')"
   # end_time="$(date -d now +'%s')"
-  # 
+  #
   # while read -r line; do
   #   time_stamp=$(echo "$line" | grep -Po "\[\K.*\]" | sed "s|]||g" | sed "s|\/| |g" | sed -e '0,/:/ s/:/ /')
   #   time_stamp=$(date -d "$time_stamp" +'%s')
@@ -93,7 +93,7 @@ check_logs() {
   #     echo "$line"
   #   fi
   # done < "$log_file"
-  
+
   # Credit: https://stackoverflow.com/a/55050093
   log_time_frame=$(awk -F: -v stop_when_before="$(date +'%d/%b/%Y:%T' -d '-'"$timeframe"' minutes')" '
     $4 < stop_when_before { exit }
@@ -254,27 +254,29 @@ while true; do
   # Get current time
   currenttime=$(date +%H:%M)
   if $abuseipdb_report; then
-    # Get report date from first in report
-    abuseipdb_first_date=$(cat "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv \
-        | cut -d ',' -f5 \
-        | head -n 2 \
-      | sed ':a;N;$!ba;s/\n//g')
-    # Set interval for bulk report submission
-    abuseipdb_interval=$(date -d "+$abuseipdb_bulk_report_interval $abuseipdb_first_date" +"%H:%M")
-    # Submit abuseipdb bulk report if past interval
-    if [[ "$currenttime" > "$abuseipdb_interval" ]]; then
-      if [[ -f $abuseipdb_log_folder/abuseipdb_bulk_report.csv ]]; then
-        # Submit abuseipdb bulk report
-        echo "ℹ️  Submitting AbuseIPDB bulk report."
-        abuseipdb_submit_bulk_report
-        if [ $? -eq 0 ]; then
-          echo "Ok."
-          mv "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv "$abuseipdb_log_folder"/abuseipdb_bulk_report_"$currenttime".csv
+    if [ -f "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv ]; then
+      # Get report date from first in report
+      abuseipdb_first_date=$(cat "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv \
+          | cut -d ',' -f5 \
+          | head -n 2 \
+        | sed ':a;N;$!ba;s/\n//g')
+      # Set interval for bulk report submission
+      abuseipdb_interval=$(date -d "+$abuseipdb_bulk_report_interval $abuseipdb_first_date" +"%H:%M")
+      # Submit abuseipdb bulk report if past interval
+      if [[ "$currenttime" > "$abuseipdb_interval" ]]; then
+        if [[ -f $abuseipdb_log_folder/abuseipdb_bulk_report.csv ]]; then
+          # Submit abuseipdb bulk report
+          echo "ℹ️  Submitting AbuseIPDB bulk report."
+          abuseipdb_submit_bulk_report
+          if [ $? -eq 0 ]; then
+            echo "Ok."
+            mv "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv "$abuseipdb_log_folder"/abuseipdb_bulk_report_"$currenttime".csv
+          fi
         fi
+      else
+        echo
+        echo "⌚ AbuseIPDB bulk report will be submitted at $abuseipdb_interval o'clock."
       fi
-    else
-      echo
-      echo "⌚ AbuseIPDB bulk report will be submitted at $abuseipdb_interval o'clock."
     fi
   fi
   end_check=$(date)
