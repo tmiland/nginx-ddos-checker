@@ -83,7 +83,24 @@ check_logs() {
 
   echo "✅ Checking logs for $domain"
 
-  log_time_frame=$(awk -v d1="$(date --date 'now -'"$timeframe"' min' '+%d/%b/%Y:%T')" '{gsub(/^[\[\t]+/, "", $4);}; $4 > d1' "$log_file")
+  # start_time="$(date -d 'now - 1 hour' +'%s')"
+  # end_time="$(date -d now +'%s')"
+  # 
+  # while read -r line; do
+  #   time_stamp=$(echo "$line" | grep -Po "\[\K.*\]" | sed "s|]||g" | sed "s|\/| |g" | sed -e '0,/:/ s/:/ /')
+  #   time_stamp=$(date -d "$time_stamp" +'%s')
+  #   if [[ "$time_stamp" > "$start_time" ]] && [[ "$time_stamp" < "$end_time" ]]; then
+  #     echo "$line"
+  #   fi
+  # done < "$log_file"
+  
+  # Credit: https://stackoverflow.com/a/55050093
+  log_time_frame=$(awk -F: -v stop_when_before="$(date +'%d/%b/%Y:%T' -d '-'"$timeframe"' minutes')" '
+    $4 < stop_when_before { exit }
+    1 { print }
+  ' < <(tac "$log_file"))
+
+  # log_time_frame=$(awk -v d1="$(date --date 'now -'"$timeframe"' min' '+%d/%b/%Y:%T')" '{gsub(/^[\[\t]+/, "", $4);}; $4 > d1' "$log_file")
   ips=$(echo "$log_time_frame" | grep -oP '(([0-9]{1,3}\.){3}[0-9]{1,3})' | sort -u)
 
   # Loop through all unique IPs and send the data to AbuseIPDB
