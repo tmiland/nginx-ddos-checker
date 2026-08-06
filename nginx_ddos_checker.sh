@@ -271,6 +271,7 @@ while true; do
   # Get current time
   currenttime=$(date +%H:%M)
   if $abuseipdb_report; then
+    last_abuseipdb_report=$(find "$abuseipdb_log_folder" -name "abuseipdb_bulk_report_*.json" | sort | tail -n 1 | grep -Po ".*_\K.*\.json" | sed "s|.json||g")
     if [ -f "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv ]; then
       # Get report date from first in report
       abuseipdb_first_date=$(cat "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv \
@@ -287,12 +288,14 @@ while true; do
           abuseipdb_submit_bulk_report
           if [ $? -eq 0 ]; then
             echo "Ok."
-            mv "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv "$abuseipdb_log_folder"/abuseipdb_bulk_report_"$currenttime".csv
+            mv "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv "$abuseipdb_log_folder"/abuseipdb_bulk_report_"${abuseipdb_report_time}".csv
           fi
         fi
       else
         echo
         echo "⌚ AbuseIPDB bulk report will be submitted after $abuseipdb_interval o'clock."
+        echo
+        echo "⌚ Last AbuseIPDB report was submitted at $last_abuseipdb_report."
       fi
     fi
   fi
