@@ -90,7 +90,7 @@ check_logs() {
     $2 < stop_when_before { exit }
     1 { print }
   ' < <(tac "$log_file"))
-  
+
   log_additional_timeframe=$(awk -F '[][]' -v stop_when_before="$(date -d -"$additional_timeframe"minutes +'%d/%b/%Y:%T %z')" '
     $2 < stop_when_before { exit }
     1 { print }
@@ -132,6 +132,7 @@ check_logs() {
       | sort -rn | grep "$ip_cidr_1.0.0.0" | cut -d ' ' -f2)
     # Generate comments
     dist_comment="$ip is part of network $ip_cidr.0.0 with $distributed_requests distributed connections"
+    dist_total_comment="$ip is part of network $ip_cidr_1.0.0.0 with $distributed_total_requests total distributed connections"
     comment="Detected $timeframe_requests connections from $ip last $timeframe minutes."
 
     if [[ "$timeframe_requests" -gt "$threshold" ]]; then
@@ -147,7 +148,12 @@ check_logs() {
       if [[ "$distributed_requests" -gt "$additional_threshold" ]] \
         || [[ "$distributed_requests_1" -gt "$distributed_requests" ]] \
         || [[ "$distributed_total_requests" -gt "$timeframe_total_requests" ]]; then
-        comment="$comment; $dist_comment"
+        # Generate comments
+        if [[ "$distributed_total_requests" -gt "$timeframe_total_requests" ]]; then
+          comment="$comment; $dist_total_comment"
+        else
+          comment="$comment; $dist_comment"
+        fi
         echo "ℹ️  $dist_comment"
         if [[ $csf == "true" ]]; then
           # Run tcpkill on ip
