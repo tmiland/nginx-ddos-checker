@@ -86,17 +86,18 @@ check_logs() {
   echo "✅ Checking logs for $domain"
 
   # Credit: https://stackoverflow.com/a/55050093
-  timeframe=$(awk -F '[][]' -v stop_when_before="$(date -d -"$timeframe"minutes +'%d/%b/%Y:%T %z')" '
+  log_timeframe=$(awk -F '[][]' -v stop_when_before="$(date -d -"$timeframe"minutes +'%d/%b/%Y:%T %z')" '
     $2 < stop_when_before { exit }
     1 { print }
   ' < <(tac "$log_file"))
-  additional_timeframe=$(awk -F '[][]' -v stop_when_before="$(date -d -"$additional_timeframe"minutes +'%d/%b/%Y:%T %z')" '
+  
+  log_additional_timeframe=$(awk -F '[][]' -v stop_when_before="$(date -d -"$additional_timeframe"minutes +'%d/%b/%Y:%T %z')" '
     $2 < stop_when_before { exit }
     1 { print }
   ' < <(tac "$log_file"))
 
   # log_time_frame=$(awk -v d1="$(date --date 'now -'"$timeframe"' min' '+%d/%b/%Y:%T')" '{gsub(/^[\[\t]+/, "", $4);}; $4 > d1' "$log_file")
-  ips=$(echo "$timeframe" | awk '{print $1}' | sort -u)
+  ips=$(echo "$log_timeframe" | awk '{print $1}' | sort -u)
 
   # Loop through all unique IPs and send the data to AbuseIPDB
   for ip in $ips; do
@@ -107,9 +108,9 @@ check_logs() {
     fi
 
     # Count timeframe requests per ip
-    timeframe_requests=$(echo "$timeframe" | grep -c "$ip")
+    timeframe_requests=$(echo "$log_timeframe" | grep -c "$ip")
     # Count additional timeframe requests per ip
-    additional_timeframe_requests=$(echo "$additional_timeframe" | grep -c "$ip")
+    additional_timeframe_requests=$(echo "$log_additional_timeframe" | grep -c "$ip")
     # Count total number of attacks
     # total_requests=$(cat "$log_file" | grep -c "$ip")
     # Extract relevant logs for the current IP
@@ -119,8 +120,8 @@ check_logs() {
     ip_cidr_2=$(echo "$ip" | cut -d '.' -f2)
     ip_cidr="$ip_cidr_1.$ip_cidr_2"
     # Count ips from network
-    distributed_requests_1=$(echo "$timeframe" | grep -c "$ip_cidr_1")
-    distributed_requests_2=$(echo "$timeframe" | grep -c "$ip_cidr_2")
+    distributed_requests_1=$(echo "$log_timeframe" | grep -c "$ip_cidr_1")
+    distributed_requests_2=$(echo "$log_timeframe" | grep -c "$ip_cidr_2")
     distributed_requests=$(( distributed_requests_1 + distributed_requests_2 ))
     timeframe_total_requests=$(( timeframe_requests + additional_timeframe_requests ))
     # total_timeframe_distributed_requests=$((  ))
@@ -142,7 +143,7 @@ check_logs() {
       fi
       # If distributed requests 1 & 2 combined are above threshold or
       # ip group 1 has more requests than 1 & 2 combined or
-      # Distributed total requests is greater than timeframe + additional timeframe requests
+      # distributed total requests is greater than timeframe + additional timeframe requests
       if [[ "$distributed_requests" -gt "$additional_threshold" ]] \
         || [[ "$distributed_requests_1" -gt "$distributed_requests" ]] \
         || [[ "$distributed_total_requests" -gt "$timeframe_total_requests" ]]; then
