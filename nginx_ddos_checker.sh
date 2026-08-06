@@ -151,10 +151,12 @@ check_logs() {
         # Generate comments
         if [[ "$distributed_total_requests" -gt "$timeframe_total_requests" ]]; then
           comment="$comment; $dist_total_comment"
+          echo "ℹ️  $dist_total_comment"
         else
           comment="$comment; $dist_comment"
+          echo "ℹ️  $dist_comment"
         fi
-        echo "ℹ️  $dist_comment"
+        
         if [[ $csf == "true" ]]; then
           # Run tcpkill on ip
           if [[ $tcp_kill == "true" ]]; then
