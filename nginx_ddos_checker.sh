@@ -295,7 +295,7 @@ while true; do
         echo
         echo "⌚ AbuseIPDB bulk report will be submitted after $abuseipdb_interval o'clock."
         echo
-        echo "⌚ Last AbuseIPDB report was submitted at $last_abuseipdb_report."
+        echo "⌚ Last AbuseIPDB report was submitted at $(date -d "$last_abuseipdb_report")."
       fi
     fi
   fi
