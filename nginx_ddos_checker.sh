@@ -86,7 +86,7 @@ check_logs() {
   echo "✅ Checking logs for $domain"
 
   # Credit: https://stackoverflow.com/a/55050093
-  log_time_frame=$(awk -F '[][]' -v stop_when_before="$(date -d -"$timeframe"minutes +'%d/%b/%Y:%T')" '
+  log_time_frame=$(awk -F '[][]' -v stop_when_before="$(date -d -"$timeframe"minutes +'%d/%b/%Y:%T %z')" '
     $2 < stop_when_before { exit }
     1 { print }
   ' < <(tac "$log_file"))
@@ -116,6 +116,11 @@ check_logs() {
     distributed_requests_1=$(echo "$log_time_frame" | grep -c "$ip_cidr_1")
     distributed_requests_2=$(echo "$log_time_frame" | grep -c "$ip_cidr_2")
     distributed_requests=$(( distributed_requests_1 + distributed_requests_2 ))
+    # distributed_total_requests=$(awk '{print $1}' "$log_file" \
+    #   | awk -F'.' '{print $1"."0"."0"."0}' \
+    #   | sort \
+    #   | uniq -c \
+    #   | sort -rn | grep "$ip_cidr_1.0.0.0" | cut -d ' ' -f2)
     # Generate comments
     dist_comment="$ip is part of network $ip_cidr.0.0 with $distributed_requests distributed connections"
     comment="Detected $time_frame_requests connections from $ip last $timeframe minutes."
