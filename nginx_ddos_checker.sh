@@ -86,8 +86,8 @@ check_logs() {
   echo "✅ Checking logs for $domain"
 
   # Credit: https://stackoverflow.com/a/55050093
-  log_time_frame=$(awk -F: -v stop_when_before="$(date +'%d/%b/%Y:%T' -d '-'"$timeframe"' minutes')" '
-    $4 < stop_when_before { exit }
+  log_time_frame=$(awk -F '[][]' -v stop_when_before="$(date -d -"$timeframe"minutes +'%d/%b/%Y:%T')" '
+    $2 < stop_when_before { exit }
     1 { print }
   ' < <(tac "$log_file"))
 
