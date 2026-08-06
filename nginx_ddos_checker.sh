@@ -290,7 +290,7 @@ while true; do
         fi
       else
         echo
-        echo "⌚ AbuseIPDB bulk report will be submitted at $abuseipdb_interval o'clock."
+        echo "⌚ AbuseIPDB bulk report will be submitted after $abuseipdb_interval o'clock."
       fi
     fi
   fi
