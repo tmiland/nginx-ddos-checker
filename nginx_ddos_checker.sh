@@ -13,6 +13,8 @@ then
   set -o xtrace
 fi
 
+restart_nginx=0
+
 abuseipdb_bulk_report() {
   category="4,19,21"
   abuseipdb_report_time=$(date +"%Y-%m-%dT%H:%M:%S%z")
@@ -82,17 +84,6 @@ check_logs() {
   local additional_timeframe="$6"
 
   echo "✅ Checking logs for $domain"
-
-  # start_time="$(date -d 'now - 1 hour' +'%s')"
-  # end_time="$(date -d now +'%s')"
-  #
-  # while read -r line; do
-  #   time_stamp=$(echo "$line" | grep -Po "\[\K.*\]" | sed "s|]||g" | sed "s|\/| |g" | sed -e '0,/:/ s/:/ /')
-  #   time_stamp=$(date -d "$time_stamp" +'%s')
-  #   if [[ "$time_stamp" > "$start_time" ]] && [[ "$time_stamp" < "$end_time" ]]; then
-  #     echo "$line"
-  #   fi
-  # done < "$log_file"
 
   # Credit: https://stackoverflow.com/a/55050093
   log_time_frame=$(awk -F: -v stop_when_before="$(date +'%d/%b/%Y:%T' -d '-'"$timeframe"' minutes')" '
@@ -168,8 +159,10 @@ check_logs() {
             echo "$ip_cidr.0.0/24 1;" | tee >> "$nginx_cidr_blocklist"
             echo "🚫 IP CIDR $ip_cidr.0.0/24 has been added to the Nginx CIDR blocklist."
             echo
+            restart_nginx=1
           else
             echo "ℹ️  IP CIDR $ip_cidr.0.0/24 has been banned in the Nginx CIDR blocklist already."
+            restart_nginx=0
           fi
         fi
         if [[ $nginx_block == "true" ]]; then
@@ -247,7 +240,7 @@ while true; do
     fi
   done
 
-  if [[ "$csf" == "true" ]]; then
+  if [[ "$restart_nginx" == "1" ]]; then
     >/dev/null 2>&1 nginx -t && systemctl restart nginx && echo "ℹ️  Nginx has been restarted."
   fi
 
