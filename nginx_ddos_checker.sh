@@ -123,16 +123,16 @@ check_logs() {
     distributed_requests_1=$(echo "$log_timeframe" | grep -c "$ip_cidr_1")
     distributed_requests_2=$(echo "$log_timeframe" | grep -c "$ip_cidr_2")
     distributed_requests=$(( distributed_requests_1 + distributed_requests_2 ))
-    timeframe_total_requests=$(( timeframe_requests + additional_timeframe_requests ))
+    total_timeframe_requests=$(( timeframe_requests + additional_timeframe_requests ))
     # total_timeframe_distributed_requests=$((  ))
-    distributed_total_requests=$(awk '{print $1}' "$log_file" \
-        | awk -F'.' '{print $1"."0"."0"."0}' \
-        | sort \
-        | uniq -c \
-      | sort -rn | grep "$ip_cidr_1.0.0.0" | cut -d ' ' -f2)
+    # distributed_total_requests=$(awk '{print $1}' "$log_file" \
+    #     | awk -F'.' '{print $1"."0"."0"."0}' \
+    #     | sort \
+    #     | uniq -c \
+    #   | sort -rn | grep "$ip_cidr_1.0.0.0" | cut -d ' ' -f2)
     # Generate comments
     dist_comment="$ip is part of network $ip_cidr.0.0 with $distributed_requests distributed connections"
-    dist_total_comment="$ip is part of network $ip_cidr_1.0.0.0 with $distributed_total_requests total distributed connections"
+    # dist_total_comment="$ip is part of network $ip_cidr_1.0.0.0 with $distributed_total_requests total distributed connections"
     comment="Detected $timeframe_requests connections from $ip last $timeframe minutes."
 
     if [[ "$timeframe_requests" -gt "$threshold" ]]; then
@@ -147,15 +147,15 @@ check_logs() {
       # distributed total requests is greater than timeframe + additional timeframe requests
       if [[ "$distributed_requests" -gt "$additional_threshold" ]] \
         || [[ "$distributed_requests_1" -gt "$distributed_requests" ]] \
-        || [[ "$distributed_total_requests" -gt "$timeframe_total_requests" ]]; then
+        || [[ "$total_timeframe_requests" -gt "$total_threshold" ]]; then # || [[ "$distributed_total_requests" -gt "$total_timeframe_requests" ]]; then
         # Generate comments
-        if [[ "$distributed_total_requests" -gt "$timeframe_total_requests" ]]; then
-          comment="$comment; $dist_total_comment"
-          echo "ℹ️  $dist_total_comment"
-        else
+        # if [[ "$distributed_total_requests" -gt "$total_timeframe_requests" ]]; then
+        #   comment="$comment; $dist_total_comment"
+        #   echo "ℹ️  $dist_total_comment"
+        # else
           comment="$comment; $dist_comment"
           echo "ℹ️  $dist_comment"
-        fi
+        # fi
         
         if [[ $csf == "true" ]]; then
           # Run tcpkill on ip
@@ -235,6 +235,7 @@ timeframe=$(config_grep timeframe)
 threshold=$(config_grep threshold)
 additional_threshold=$(config_grep additional_threshold)
 additional_timeframe=$(config_grep additional_timeframe)
+total_threshold=$(config_grep total_threshold)
 bantime=$(config_grep bantime)
 abuseipdb_token=$(config_grep abuseipdb_token)
 abuseipdb_report=$(config_grep abuseipdb_report)
