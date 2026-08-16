@@ -44,14 +44,14 @@ abuseipdb_bulk_report() {
   if ! [ -f "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv ]; then
     touch "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv
     # Add csv header
-    if ! grep "IP,Categories,ReportDate,Comment" "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv >/dev/null 2>&1; then
+    if ! grep -q "IP,Categories,ReportDate,Comment" "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv; then
       tee "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv <<'EOF' >/dev/null
 IP,Categories,ReportDate,Comment
 EOF
     fi
   fi
   # Add ip's to csv bulk report
-  if ! grep "${ip}" "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv >/dev/null 2>&1; then
+  if ! grep -q "${ip}" "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv; then
     # Add ip, catecories, report time and log to csv
     echo "${ip},\"${category}\",${abuseipdb_report_time},\"${comment}\"" >> "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv
     echo "🚫 IP ${ip} has been added to the bulk report."
@@ -166,7 +166,7 @@ check_logs() {
             echo "ℹ️  tcpkill executed on IP $ip for 60 seconds."
           fi
           # Tempban ip in csf
-          if csf -g "$ip_cidr.0.0/24" | grep "No matches found" >/dev/null 2>&1; then
+          if csf -g "$ip_cidr.0.0/24" | grep -q "No matches found"; then
             csf --tempdeny "$ip_cidr.0.0/24" "$dist_comment" >/dev/null 2>&1
             echo
             echo "🚫 Banned IP CIDR $ip_cidr.0.0 from IP $ip for $bantime seconds in csf firewall."
@@ -287,8 +287,8 @@ while true; do
       if [[ "$currenttime" > "$abuseipdb_interval" ]] || [[ "$currenttime" < "$abuseipdb_interval" ]]; then
         if [[ -f $abuseipdb_log_folder/abuseipdb_bulk_report.csv ]]; then
           # Skip if rate limit is exceeded
-          if jq -r '.errors[].detail' "$abuseipdb_log_folder"/abuseipdb_bulk_report_"${abuseipdb_report_time}".json \
-          | grep "Daily rate limit of 100 requests exceeded"; then
+          if jq -r '.errors[].detail' "$(find "$abuseipdb_log_folder" -name "abuseipdb_bulk_report_*.json" | sort | tail -n 1)" \
+          | grep -q "Daily rate limit of 100 requests exceeded"; then
             continue
           fi
           # Submit abuseipdb bulk report
