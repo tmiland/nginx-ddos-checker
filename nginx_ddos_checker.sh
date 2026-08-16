@@ -284,7 +284,7 @@ while true; do
       # Set interval for bulk report submission
       abuseipdb_interval=$(date -d "+$abuseipdb_bulk_report_interval $abuseipdb_first_date" +"%H:%M")
       # Submit abuseipdb bulk report if past interval
-      if [[ "$currenttime" > "$abuseipdb_interval" ]] || [[ "$currenttime" < "$abuseipdb_interval" ]]; then
+      if [[ "$currenttime" > "$abuseipdb_interval" ]]; then
         if [[ -f $abuseipdb_log_folder/abuseipdb_bulk_report.csv ]]; then
           # Skip if rate limit is exceeded
           if jq -r '.errors[].detail' "$(find "$abuseipdb_log_folder" -name "abuseipdb_bulk_report_*.json" | sort | tail -n 1)" >/dev/null 2>&1 \
