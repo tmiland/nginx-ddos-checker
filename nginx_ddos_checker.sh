@@ -287,7 +287,7 @@ while true; do
       if [[ "$currenttime" > "$abuseipdb_interval" ]] || [[ "$currenttime" < "$abuseipdb_interval" ]]; then
         if [[ -f $abuseipdb_log_folder/abuseipdb_bulk_report.csv ]]; then
           # Skip if rate limit is exceeded
-          if jq -r '.errors[].detail' "$(find "$abuseipdb_log_folder" -name "abuseipdb_bulk_report_*.json" | sort | tail -n 1)" \
+          if jq -r '.errors[].detail' "$(find "$abuseipdb_log_folder" -name "abuseipdb_bulk_report_*.json" | sort | tail -n 1)" >/dev/null 2>&1 \
           | grep -q "Daily rate limit of 100 requests exceeded"; then
             continue
           fi
