@@ -286,6 +286,11 @@ while true; do
       # Submit abuseipdb bulk report if past interval
       if [[ "$currenttime" > "$abuseipdb_interval" ]] || [[ "$currenttime" < "$abuseipdb_interval" ]]; then
         if [[ -f $abuseipdb_log_folder/abuseipdb_bulk_report.csv ]]; then
+          # Skip if rate limit is exceeded
+          if jq -r '.errors[].detail' "$abuseipdb_log_folder"/abuseipdb_bulk_report_"${abuseipdb_report_time}".json \
+          | grep "Daily rate limit of 100 requests exceeded"; then
+            continue
+          fi
           # Submit abuseipdb bulk report
           echo "ℹ️  Submitting AbuseIPDB bulk report."
           abuseipdb_submit_bulk_report
