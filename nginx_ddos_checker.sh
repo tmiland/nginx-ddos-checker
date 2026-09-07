@@ -68,6 +68,57 @@ abuseipdb_submit_bulk_report() {
     > "$abuseipdb_log_folder"/abuseipdb_bulk_report_"${abuseipdb_report_time}".json
 }
 
+# Report a single IP directly to AbuseIPDB (no queueing), then check the
+# HTTP response for rate limiting.
+abuseipdb_direct_report() {
+  category="4,19,21"
+  abuseipdb_report_time=$(date +"%Y-%m-%dT%H:%M:%S%z")
+  if echo "$ip_logs" | grep -Eq $excluded_ips; then
+    ip_logs=$(echo "$ip_logs" | sed "s/$excluded_ips/*.*.*.*/g")
+  fi
+  if echo "$ip_logs" | grep -Eq $domain; then
+    ip_logs=$(echo "$ip_logs" | sed "s/$domain/*.*/g")
+  fi
+  ip_logs=$(echo "$ip_logs" | sed "s/\"/\\\\\"/g")
+  report_comment="$comment; Logs: $(echo "$ip_logs" | tr '\n' ' ')"
+  if [[ ${#report_comment} > 1024 ]]; then
+    report_comment=${report_comment:0:1024}
+  fi
+  if ! [ -d "$abuseipdb_log_folder" ]; then
+    mkdir -p "$abuseipdb_log_folder"
+  fi
+  # Capture the HTTP status code to detect rate limiting (429)
+  local resp
+  resp=$(curl -s -w '\n%{http_code}' https://api.abuseipdb.com/api/v2/report \
+    -H "Key: $abuseipdb_token" \
+    -H "Accept: application/json" \
+    -F "ip=$ip" \
+    -F "categories=$category" \
+    -F "comment=$report_comment")
+  local code
+  code=$(echo "$resp" | tail -n 1)
+  echo "$resp" | sed '$d' > "$abuseipdb_log_folder"/abuseipdb_direct_report_"${abuseipdb_report_time}".json
+  if [[ "$code" == "429" ]]; then
+    echo "ℹ️  Direct report for $ip hit a rate limit (429)."
+    return 1
+  fi
+  echo "🚫 IP $ip reported directly to AbuseIPDB (HTTP $code)."
+  return 0
+}
+
+# Dispatcher: report the IP using the configured method, auto-switching to the
+# other method when the current one runs into a rate limit.
+abuseipdb_report_ip() {
+  if [[ "$abuseipdb_report_method" == "direct" ]]; then
+    abuseipdb_direct_report && return 0
+    echo "ℹ️  Rate limit on direct report - switching this IP to the bulk queue."
+    abuseipdb_bulk_report
+    return 0
+  fi
+  # default: bulk queue first
+  abuseipdb_bulk_report
+}
+
 tcp_kill() {
   # Double-fork so the timeout wrapper (and tcpkill) survive daemon teardown;
   # otherwise a force-killed daemon orphans tcpkill past its 60s window.
@@ -254,7 +305,9 @@ check_logs() {
           fi
         fi
         if [[ $abuseipdb_report == "true" ]]; then
-          abuseipdb_bulk_report
+          # Relevant log lines for this IP, needed for the AbuseIPDB report comment
+          ip_logs=$(cat "$log_file" | grep -F "$ip")
+          abuseipdb_report_ip
           sleep 0.1
         fi
       fi
@@ -290,6 +343,7 @@ bantime=$(config_grep bantime)
 abuseipdb_token=$(config_grep abuseipdb_token)
 abuseipdb_report=$(config_grep abuseipdb_report)
 abuseipdb_log_folder=$(config_grep abuseipdb_log_folder)
+abuseipdb_report_method=$(config_grep abuseipdb_report_method)
 abuseipdb_bulk_report_interval=$(config_grep abuseipdb_bulk_report_interval)
 csf=$(config_grep csf)
 tcp_kill=$(config_grep tcp_kill)
