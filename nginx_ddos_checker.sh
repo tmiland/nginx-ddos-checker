@@ -188,7 +188,6 @@ check_logs() {
             restart_nginx=1
           else
             echo "ℹ️  IP CIDR $ip_cidr.0.0/24 has been banned in the Nginx CIDR blocklist already."
-            restart_nginx=0
           fi
         fi
         if [[ $nginx_block == "true" ]]; then
