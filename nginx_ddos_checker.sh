@@ -69,9 +69,10 @@ abuseipdb_submit_bulk_report() {
 }
 
 tcp_kill() {
-  # execute tcpkill for 60 seconds
-  timeout --foreground -k 60 -s 9 60 \
-    tcpkill -9 host "$ip" >/dev/null 2>&1 &
+  # Double-fork so the timeout wrapper (and tcpkill) survive daemon teardown;
+  # otherwise a force-killed daemon orphans tcpkill past its 60s window.
+  ( timeout -k 5 -s 9 60 \
+      tcpkill -9 host "$ip" >/dev/null 2>&1 & )
 }
 
 # Function to check logs for DDoS attacks
