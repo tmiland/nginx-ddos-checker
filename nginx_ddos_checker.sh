@@ -61,11 +61,15 @@ EOF
 }
 
 abuseipdb_submit_bulk_report() {
-  curl -s https://api.abuseipdb.com/api/v2/bulk-report \
+  # Capture the HTTP status code; only a 200 should clear the queue.
+  local resp code
+  resp=$(curl -s -w '\n%{http_code}' https://api.abuseipdb.com/api/v2/bulk-report \
     -F csv=@"$abuseipdb_log_folder"/abuseipdb_bulk_report.csv \
     -H "Key: $abuseipdb_token" \
-    -H "Accept: application/json" \
-    > "$abuseipdb_log_folder"/abuseipdb_bulk_report_"${abuseipdb_report_time}".json
+    -H "Accept: application/json")
+  code=$(echo "$resp" | tail -n 1)
+  echo "$resp" | sed '$d' > "$abuseipdb_log_folder"/abuseipdb_bulk_report_"${abuseipdb_report_time}".json
+  echo "$code"
 }
 
 # Report a single IP directly to AbuseIPDB (no queueing), then check the
@@ -441,39 +445,53 @@ while true; do
     flagged_domain=0
   fi
 
-  # Get current time
-  currenttime=$(date +%H:%M)
+  # AbuseIPDB bulk report submission (interval since the first queued entry)
+  now=$(date +%s)
   if [[ "$abuseipdb_report" == "true" ]]; then
-    last_abuseipdb_report=$(find "$abuseipdb_log_folder" -name "abuseipdb_bulk_report_*.json" | sort | tail -n 1 | grep -Po ".*_\K.*\.json" | sed "s|.json||g")
-    if [ -f "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv ]; then
-      # Get report date from first in report
-      abuseipdb_first_date=$(cat "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv \
-          | cut -d ',' -f5 \
-          | head -n 2 \
-        | sed ':a;N;$!ba;s/\n//g')
-      # Set interval for bulk report submission
-      abuseipdb_interval=$(date -d "+$abuseipdb_bulk_report_interval $abuseipdb_first_date" +"%H:%M")
+    # Latest response file from an ISO-timestamped submission; ignores stale
+    # old-format leftovers like abuseipdb_bulk_report_.json
+    latest_json=$(ls -t "$abuseipdb_log_folder"/abuseipdb_bulk_report_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*.json 2>/dev/null | head -n 1)
+    last_abuseipdb_report=""
+    if [[ -n "$latest_json" ]]; then
+      last_abuseipdb_report=$(basename "$latest_json" | sed 's/^abuseipdb_bulk_report_//; s/\.json$//')
+    fi
+    if [ -f "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv ] \
+      && [[ $(wc -l < "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv) -gt 1 ]]; then
+      # Get report date from the first data row of the CSV (ISO timestamp)
+      abuseipdb_first_date=$(sed -n '2p' "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv \
+        | grep -Po '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{4}' \
+        | head -n 1)
+      # Set interval for bulk report submission (epoch seconds)
+      abuseipdb_next_report=0
+      if [[ -n "$abuseipdb_first_date" ]]; then
+        abuseipdb_next_report=$(date -d "$abuseipdb_first_date +$abuseipdb_bulk_report_interval" +%s 2>/dev/null || echo 0)
+      fi
       # Submit abuseipdb bulk report if past interval
-      if [[ "$currenttime" > "$abuseipdb_interval" ]]; then
-        if [[ -f $abuseipdb_log_folder/abuseipdb_bulk_report.csv ]]; then
-          # Skip if rate limit is exceeded
-          if jq -r '.errors[].detail' "$(find "$abuseipdb_log_folder" -name "abuseipdb_bulk_report_*.json" | sort | tail -n 1)" >/dev/null 2>&1 \
-          | grep -q "Daily rate limit of 100 requests exceeded"; then
-            continue
-          fi
-          # Submit abuseipdb bulk report
+      if [[ "$now" -ge "$abuseipdb_next_report" ]]; then
+        # Skip if the daily rate limit was already hit today
+        if [[ -n "$latest_json" ]] \
+          && [[ "${last_abuseipdb_report%%T*}" == "$(date +%F)" ]] \
+          && jq -r '.errors[]?.detail // empty' "$latest_json" 2>/dev/null | grep -q "Daily rate limit"; then
+          echo "⚠️  AbuseIPDB daily rate limit already hit today - keeping the bulk queue."
+        else
+          # Submit abuseipdb bulk report; only clear the queue on HTTP 200
           echo "ℹ️  Submitting AbuseIPDB bulk report."
-          abuseipdb_submit_bulk_report
-          if [ $? -eq 0 ]; then
+          abuseipdb_report_time=$(date +"%Y-%m-%dT%H:%M:%S%z")
+          code=$(abuseipdb_submit_bulk_report)
+          if [[ "$code" == "200" ]]; then
             echo "Ok."
             mv "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv "$abuseipdb_log_folder"/abuseipdb_bulk_report_"${abuseipdb_report_time}".csv
+          else
+            echo "⚠️  AbuseIPDB bulk report failed (HTTP $code) - keeping the bulk queue."
           fi
         fi
       else
         echo
-        echo "⌚ AbuseIPDB bulk report will be submitted after $abuseipdb_interval o'clock."
+        echo "⌚ AbuseIPDB bulk report will be submitted after $(date -d "@$abuseipdb_next_report" +"%F %H:%M")."
         echo
-        echo "⌚ Last AbuseIPDB report was submitted at $(date -d "$last_abuseipdb_report")."
+        if [[ -n "$last_abuseipdb_report" ]]; then
+          echo "⌚ Last AbuseIPDB report was submitted at $(date -d "$last_abuseipdb_report" +"%F %H:%M")."
+        fi
       fi
     fi
   fi

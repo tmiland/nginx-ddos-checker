@@ -2,11 +2,10 @@
 
 ## Current State
 
-- **Branch**: `main`, 1 commit ahead of `origin/main`
-- **Last commit**: `d3442ff` - single monolithic commit ("Fix multiple critical bugs, add direct reporting and per-domain status")
-- **Daemon**: running in production via `systemctl restart nginx_ddos-checker.service` (screen-based)
-- **Service status**: active, PID ~1410883, running the new code
-- **Config**: `nginx_ddos_checker.ini` is gitignored, tuned values, `abuseipdb_report_method=bulk`
+- **Branch**: `main`
+- **Last commit**: `35fbac0` (AGENTS.md + notes.md) — see "2026-09-08 bulk submit rework" below for newer work
+- **Daemon**: running in production on the debian server (`ssh root@debian`, repo `/root/scripts/nginx-ddos-checker`) via `nginx_ddos-checker.service` (screen-based)
+- **Config (server)**: `nginx_ddos_checker.ini`, `abuseipdb_report_method=direct` (flipped from bulk on 2026-09-08)
 
 ---
 
@@ -59,6 +58,20 @@
 16. **AGENTS.md** created (untracked) — session documentation for opencode agents.
 
 17. **example_nginx_ddos_checker.ini** updated with tuned values + `abuseipdb_report_method=bulk`.
+
+18. **AbuseIPDB bulk submit rework** (2026-09-08, `abuseipdb_submit_bulk_report()` + main loop):
+    - `abuseipdb_submit_bulk_report()` now captures the HTTP status code (`curl -w '\n%{http_code}'`), writes the response JSON itself, and echoes the code; main loop only `mv`s the CSV away on HTTP 200 — fixes silent report drops on API errors.
+    - Interval is compared in epoch seconds (`date -d "$first_date +$interval" +%s` vs `date +%s`) instead of bare HH:MM wall-clock, which was true all day and caused a submit every 60s cycle.
+    - First queue date is taken from the first data row via ISO-timestamp grep (`sed -n '2p'` + `grep -Po`), robust against the quoted `categories` commas.
+    - Latest-response selector is `ls -t .../abuseipdb_bulk_report_[0-9]{4}-...json` — the old `find | sort | tail -1` always picked the stale `abuseipdb_bulk_report_.json` (SUCCESS payload), so the rate-limit guard never fired (296 × "Daily rate limit of 100 requests exceeded" on record).
+    - Daily rate-limit guard: skips submission while the latest error response is from today, then retries next day; no more `continue` (which skipped the sleep and tight-looped).
+    - Header-only CSVs are no longer submitted (`wc -l > 1` guard; fixes "Invalid or missing 'IP' field in header row").
+    - Verified with 9-case offline harness (stubbed submit): due/not-due, 200/429, same-day guard, stale-json shadowing, header-only, no csv, real submit fn with fake curl.
+
+### 2026-09-08 direct report verified on debian
+
+- Live test on the debian server: `abuseipdb_report_ip` with `method=direct` on real offender `190.2.148.252` (searxng.tmiland.com lone high-rate) → HTTP 200, `{"data":{"ipAddress":"190.2.148.252","abuseConfidenceScore":14}}`, exit 0. New function works.
+- Server config flipped `abuseipdb_report_method=direct`; bulk remains the automatic fallback when direct hits its rate limit.
 
 ---
 
