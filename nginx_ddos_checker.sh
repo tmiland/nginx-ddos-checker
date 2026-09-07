@@ -98,6 +98,17 @@ check_logs() {
   ' < <(tac "$log_file"))
 
   # log_time_frame=$(awk -v d1="$(date --date 'now -'"$timeframe"' min' '+%d/%b/%Y:%T')" '{gsub(/^[\[\t]+/, "", $4);}; $4 > d1' "$log_file")
+  # Per-IP request counts in a single awk pass per window, instead of
+  # growling the whole window once per unique IP in the loop below.
+  declare -A timeframe_count
+  while read -r c_ipk r_cnt; do
+    timeframe_count["$c_ipk"]=$r_cnt
+  done < <(echo "$log_timeframe" | awk '{c[$1]++} END {for (k in c) print k, c[k]}')
+  declare -A additional_timeframe_count
+  while read -r c_ipk r_cnt; do
+    additional_timeframe_count["$c_ipk"]=$r_cnt
+  done < <(echo "$log_additional_timeframe" | awk '{c[$1]++} END {for (k in c) print k, c[k]}')
+
   ips=$(echo "$log_timeframe" | awk '{print $1}' | sort -u)
 
   # Loop through all unique IPs and send the data to AbuseIPDB
@@ -108,57 +119,94 @@ check_logs() {
       continue
     fi
 
-    # Count timeframe requests per ip
-    timeframe_requests=$(echo "$log_timeframe" | grep -c "$ip")
-    # Count additional timeframe requests per ip
-    additional_timeframe_requests=$(echo "$log_additional_timeframe" | grep -c "$ip")
+    # Per-IP counts from the precomputed single-pass arrays
+    timeframe_requests=${timeframe_count["$ip"]:-0}
+    additional_timeframe_requests=${additional_timeframe_count["$ip"]:-0}
     # Count total number of attacks
     # total_requests=$(cat "$log_file" | grep -c "$ip")
-    # Extract relevant logs for the current IP
-    ip_logs=$(cat "$log_file" | grep "$ip")
-    # Get first two groups
+    # Get culprit's network grouping
     ip_cidr_1=$(echo "$ip" | cut -d '.' -f1)
     ip_cidr_2=$(echo "$ip" | cut -d '.' -f2)
-    ip_cidr="$ip_cidr_1.$ip_cidr_2"
-    # Count ips from network
-    distributed_requests_1=$(echo "$log_timeframe" | grep -c "$ip_cidr_1")
-    distributed_requests_2=$(echo "$log_timeframe" | grep -c "$ip_cidr_2")
-    distributed_requests=$(( distributed_requests_1 + distributed_requests_2 ))
+    ip_cidr_3=$(echo "$ip" | cut -d '.' -f3)
+    ip_cidr="$ip_cidr_1.$ip_cidr_2.$ip_cidr_3"
+    # Distributed-attack metrics: anchored to the source-IP field and scoped to the
+    # window, so response codes/timestamps/stale all-time traffic can't inflate counts.
+    # Requests in the window from IPs sharing the culprit's first octet (45.x.x.x)
+    distributed_group_requests=$(echo "$log_timeframe" \
+      | awk -v oct="$ip_cidr_1" '$1 ~ "^" oct "\\." {n++} END {print n+0}')
+    # Distinct sources in that first-octet group (a botnet spreads across many IPs)
+    distributed_sources=$(echo "$log_timeframe" \
+      | awk -v oct="$ip_cidr_1" '$1 ~ "^" oct "\\." {print $1}' | sort -u | wc -l | tr -d ' ')
+    # Loudest OTHER source in the culprit's /8 (excluding the culprit itself).
+    # Proves genuine distribution: at least one independent machine must be
+    # individually pushing substantial traffic, so a busy cloud /8 full of
+    # innocent 1-2 request users can't inflate the group count.
+    distributed_bot_peak=$(echo "$log_timeframe" \
+      | awk -v oct="$ip_cidr_1" -v culprit="$ip" \
+          '$1 ~ "^" oct "\\." && $1 != culprit {c[$1]++} END {m=0; for (k in c) if (c[k]>m) m=c[k]; print m+0}')
     total_timeframe_requests=$(( timeframe_requests + additional_timeframe_requests ))
-    # total_timeframe_distributed_requests=$((  ))
-    distributed_total_requests=$(awk '{print $1}' "$log_file" \
-        | awk -F'.' '{print $1"."0"."0"."0}' \
-        | sort \
-        | uniq -c \
-      | sort -rn | grep "$ip_cidr_1.0.0.0" | cut -d ' ' -f2)
     # Generate comments
-    dist_comment="$ip is part of network $ip_cidr.0.0 with $distributed_requests distributed connections"
-    dist_total_comment="$ip is part of network $ip_cidr_1.0.0.0 with $distributed_total_requests total distributed connections"
+    dist_comment="$ip is part of network $ip_cidr_1.0.0.0 with $distributed_sources source(s) ($distributed_group_requests connections) in the last $timeframe minutes"
     comment="Detected $timeframe_requests connections from $ip last $timeframe minutes."
 
     if [[ "$timeframe_requests" -gt "$threshold" ]]; then
       echo "🛑 $comment"
 
-      # Exit if requests per timeframe is less than distributed requests
-      if ! [[ "$timeframe_requests" -lt "$distributed_requests" ]]; then
+      # A distributed attack needs other machines in the same network range:
+      # at least 3 distinct sources in the culprit's first-octet group this window,
+      # AND the loudest other source must be individually meaningful (>= half the
+      # single-IP threshold). This keeps a busy cloud /8 (many innocent 1-2 request
+      # users) from ever looking like a botnet, while still catching botnets whose
+      # members each contribute a moderate share.
+      if [[ "$distributed_sources" -lt 3 ]] \
+        || [[ "$distributed_bot_peak" -lt "$(( threshold / 2 ))" ]]; then
+        echo "ℹ️  $ip is not part of a distributed attack ($distributed_sources source(s), loudest other $distributed_bot_peak req in $ip_cidr_1.0.0.0)."
+        # Not distributed, but a lone source hammering this hard is still
+        # abusive: ban the exact IP (not the /24, to avoid cloud collateral)
+        # once its combined rate clears the total high-volume threshold.
+        if [[ "$total_timeframe_requests" -gt "$total_threshold" ]]; then
+          comment="$comment; lone high-rate source (combined $total_timeframe_requests requests in both windows)"
+          echo "ℹ️  $ip is a lone high-rate source ($total_timeframe_requests combined requests) - banning exact IP."
+          if [[ $csf == "true" ]]; then
+            if csf -g "$ip" | grep -q "No matches found"; then
+              csf --tempdeny "$ip" "$bantime" "$comment" >/dev/null 2>&1
+              echo
+              echo "🚫 Banned IP $ip for $bantime seconds in csf firewall."
+              echo
+            else
+              echo "ℹ️  IP $ip is temporarily banned in csf firewall already."
+            fi
+          fi
+          if [[ $nginx_block == "true" ]]; then
+            if ! [ -f "$nginx_blocklist" ]; then
+              touch "$nginx_blocklist"
+            fi
+            if ! grep -qw "$ip" "$nginx_blocklist"; then
+              sed -i "/^${ip}$/d" "$nginx_blocklist"
+              echo "$ip" | tee >> "$nginx_blocklist"
+              echo "🚫 IP $ip has been added to the Nginx blocklist."
+              echo
+            else
+              echo "ℹ️  IP $ip has been banned in the Nginx blocklist already."
+            fi
+          fi
+          if [[ $abuseipdb_report == "true" ]]; then
+            ip_logs=$(cat "$log_file" | grep -F "$ip")
+            abuseipdb_report_ip
+            sleep 0.1
+          fi
+        fi
         continue
       fi
-      # If distributed requests 1 & 2 combined are above threshold or
-      # ip group 1 has more requests than 1 & 2 combined or
-      # distributed total requests is greater than timeframe + additional timeframe requests or
-      # distributed total requests is greater than total threshold
-      if [[ "$distributed_requests" -gt "$additional_threshold" ]] \
-        || [[ "$distributed_requests_1" -gt "$distributed_requests" ]] \
+      # Distributed attack confirmed - ban when the volume is meaningful:
+      # group traffic above additional_threshold, culprit above total_threshold,
+      # or the group collectively outdoes the culprit's two-window count
+      # (distributed traffic exceeds "1 & 2 combined").
+      if [[ "$distributed_group_requests" -gt "$additional_threshold" ]] \
         || [[ "$total_timeframe_requests" -gt "$total_threshold" ]] \
-        || [[ "$distributed_total_requests" -gt "$total_timeframe_requests" ]]; then
-        # Generate comments
-        if [[ "$distributed_total_requests" -gt "$total_timeframe_requests" ]]; then
-          comment="$comment; $dist_total_comment"
-          echo "ℹ️  $dist_total_comment"
-        else
-          comment="$comment; $dist_comment"
-          echo "ℹ️  $dist_comment"
-        fi
+        || [[ "$distributed_group_requests" -gt "$total_timeframe_requests" ]]; then
+        comment="$comment; $dist_comment"
+        echo "ℹ️  $dist_comment"
         
         if [[ $csf == "true" ]]; then
           # Run tcpkill on ip
@@ -167,13 +215,13 @@ check_logs() {
             echo "ℹ️  tcpkill executed on IP $ip for 60 seconds."
           fi
           # Tempban ip in csf
-          if csf -g "$ip_cidr.0.0/24" | grep -q "No matches found"; then
-            csf --tempdeny "$ip_cidr.0.0/24" "$dist_comment" >/dev/null 2>&1
+          if csf -g "$ip_cidr.0/24" | grep -q "No matches found"; then
+            csf --tempdeny "$ip_cidr.0/24" "$bantime" "$dist_comment" >/dev/null 2>&1
             echo
-            echo "🚫 Banned IP CIDR $ip_cidr.0.0 from IP $ip for $bantime seconds in csf firewall."
+            echo "🚫 Banned IP CIDR $ip_cidr.0 from IP $ip for $bantime seconds in csf firewall."
             echo
           else
-            echo "ℹ️  IP CIDR $ip_cidr.0.0/24 is temporarily banned in csf firewall already."
+            echo "ℹ️  IP CIDR $ip_cidr.0/24 is temporarily banned in csf firewall already."
           fi
         fi
         if [[ $nginx_cidr == "true" ]]; then
@@ -181,14 +229,14 @@ check_logs() {
             touch "$nginx_cidr_blocklist"
           fi
           # Add ip to nginx cidr blocklist if not found
-          if ! grep -qw "$ip_cidr.0.0/24" "$nginx_cidr_blocklist"; then
-            sed -i "/$ip_cidr.0.0\/24/d" "$nginx_cidr_blocklist"
-            echo "$ip_cidr.0.0/24 1;" | tee >> "$nginx_cidr_blocklist"
-            echo "🚫 IP CIDR $ip_cidr.0.0/24 has been added to the Nginx CIDR blocklist."
+          if ! grep -qw "$ip_cidr.0/24" "$nginx_cidr_blocklist"; then
+            sed -i "/$ip_cidr.0\/24/d" "$nginx_cidr_blocklist"
+            echo "$ip_cidr.0/24 1;" | tee >> "$nginx_cidr_blocklist"
+            echo "🚫 IP CIDR $ip_cidr.0/24 has been added to the Nginx CIDR blocklist."
             echo
             restart_nginx=1
           else
-            echo "ℹ️  IP CIDR $ip_cidr.0.0/24 has been banned in the Nginx CIDR blocklist already."
+            echo "ℹ️  IP CIDR $ip_cidr.0/24 has been banned in the Nginx CIDR blocklist already."
           fi
         fi
         if [[ $nginx_block == "true" ]]; then
