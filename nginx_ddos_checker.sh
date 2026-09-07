@@ -260,7 +260,7 @@ while true; do
   SECONDS=0
   # Check logs for DDoS attacks for each domain
   for domain in "${virtual_hosts[@]}"; do
-    if [[ "$excluded_domains" =~ "$domain" ]]; then
+    if [[ " ${excluded_domains//,/ } " == *" $domain "* ]]; then
       echo "ℹ️  Skipping $domain as it is excluded."
     else
       check_logs "$domain" "$nginx_logs_path/$domain"_access_log "$timeframe" "$threshold" "$additional_threshold" "$additional_timeframe"
