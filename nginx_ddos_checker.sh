@@ -138,12 +138,12 @@ check_logs() {
   echo "✅ Checking logs for $domain"
 
   # Credit: https://stackoverflow.com/a/55050093
-  log_timeframe=$(awk -F '[][]' -v stop_when_before="$(date -d -"$timeframe"minutes +'%d/%b/%Y:%T %z')" '
+  log_timeframe=$(awk -F '[][]' -v stop_when_before="$(date -d "-${timeframe}minutes" +'%d/%b/%Y:%T %z')" '
     $2 < stop_when_before { exit }
     1 { print }
   ' < <(tac "$log_file"))
 
-  log_additional_timeframe=$(awk -F '[][]' -v stop_when_before="$(date -d -"$additional_timeframe"minutes +'%d/%b/%Y:%T %z')" '
+  log_additional_timeframe=$(awk -F '[][]' -v stop_when_before="$(date -d "-${additional_timeframe}minutes" +'%d/%b/%Y:%T %z')" '
     $2 < stop_when_before { exit }
     1 { print }
   ' < <(tac "$log_file"))
@@ -165,6 +165,8 @@ check_logs() {
   # Loop through all unique IPs and send the data to AbuseIPDB
   for ip in $ips; do
 
+    # Exact match, so an excluded IP can't accidentally shadow a substring
+    # (e.g. 27.0.0.1 matching excluded "127.0.0.1")
     if [[ " ${excluded_ips//,/ } " == *" $ip "* ]]; then
       echo "ℹ️  Skipping $ip as it is excluded."
       continue
@@ -201,6 +203,7 @@ check_logs() {
     comment="Detected $timeframe_requests connections from $ip last $timeframe minutes."
 
     if [[ "$timeframe_requests" -gt "$threshold" ]]; then
+      flagged_domain=1
       echo "🛑 $comment"
 
       # A distributed attack needs other machines in the same network range:
@@ -315,6 +318,64 @@ check_logs() {
   done
 }
 
+# Report the current attack status for a given domain: any offenders our script
+# has banned that are still blocked in csf, each with whether it is also blocked
+# at Nginx layer(s) and whether it has been reported to AbuseIPDB. Only renders
+# when the domain is actually affected. Output is wrapped to 80 columns.
+attack_status() {
+  local domain="$1"
+  local blocked line ip ttl type extra layer stat col
+  # csf tempdeny entries still blocked whose comment carries our offence markers.
+  blocked="$({ csf -t 2>/dev/null || true; } | grep -iE 'part of network|lone high-rate source' || true)"
+  if [[ -z "$blocked" ]]; then
+    return 0
+  fi
+
+  echo
+  echo "⚠️  ONGOING ATTACK on $domain:"
+  echo
+  while IFS= read -r line; do
+    # Lines look like: DENY <ip>  * inout 4h 5m 2s <comment>
+    ip=$(echo "$line" | awk '{print $2}')
+    # Only report offenders actually seen in this domain's log.
+    if ! grep -qF "$ip" "$nginx_logs_path/$domain"_access_log; then
+      continue
+    fi
+    ttl=$(echo "$line" | awk '{for(i=1;i<=NF;i++) if ($i ~ /s$|m$|h$/) {print $i; break}}')
+    type=$(echo "$line" | grep -q 'lone high-rate' && echo "lone high-rate" || echo "distributed")
+    extra=$(echo "$line" | grep -o 'Detected [0-9]* connections[^;]*')
+    # Blocked layer status
+    layer="csf"
+    if [[ "$nginx_block" == "true" ]] && grep -qw "$ip" "$nginx_blocklist" 2>/dev/null; then
+      layer="$layer, nginx-ip"
+    fi
+    if [[ "$nginx_cidr" == "true" ]] && grep -qw "$(echo "$ip" | cut -d. -f1-3).0/24" "$nginx_cidr_blocklist" 2>/dev/null; then
+      layer="$layer, nginx-cidr"
+    fi
+    # Reported status
+    stat="not reported"
+    if [[ "$abuseipdb_report" == "true" ]]; then
+      if ls "$abuseipdb_log_folder"/abuseipdb_direct_report_*.json >/dev/null 2>&1 \
+        && grep -lq "$ip" "$abuseipdb_log_folder"/abuseipdb_direct_report_*.json 2>/dev/null; then
+        stat="reported-direct"
+      elif ls "$abuseipdb_log_folder"/abuseipdb_bulk_report_*.csv >/dev/null 2>&1 \
+        && grep -lq "^$ip," "$abuseipdb_log_folder"/abuseipdb_bulk_report_*.csv 2>/dev/null; then
+        stat="reported-bulk"
+      fi
+    fi
+    # Build a compact, 80-column-wrapped status block for this offender.
+    printf '  IP        : %s\n' "$ip"
+    printf '  Type      : %s\n' "$type"
+    printf '  Traffic   : %s\n' "$extra"
+    printf '  Remaining : %s\n' "$ttl"
+    printf '  Blocked   : %s\n' "$layer"
+    printf '  Reported  : %s\n' "$stat"
+    echo
+  done <<< "$blocked"
+  echo "---------------------------------------------"
+  echo
+}
+
 # Main script
 config_file="${SCRIPT_DIR}/nginx_ddos_checker.ini"
 example_config_file=""${SCRIPT_DIR}/example_nginx_ddos_checker.ini""
@@ -365,12 +426,19 @@ while true; do
     if [[ " ${excluded_domains//,/ } " == *" $domain "* ]]; then
       echo "ℹ️  Skipping $domain as it is excluded."
     else
+      flagged_domain=0
       check_logs "$domain" "$nginx_logs_path/$domain"_access_log "$timeframe" "$threshold" "$additional_threshold" "$additional_timeframe"
+      # Report any ongoing attack on this specific domain right beneath its scan.
+      if [[ "$flagged_domain" == "1" ]]; then
+        attack_status "$domain"
+      fi
     fi
   done
 
   if [[ "$restart_nginx" == "1" ]]; then
     >/dev/null 2>&1 nginx -t && systemctl restart nginx && echo "ℹ️  Nginx has been restarted."
+    restart_nginx=0
+    flagged_domain=0
   fi
 
   # Get current time
