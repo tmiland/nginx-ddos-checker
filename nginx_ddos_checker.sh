@@ -197,7 +197,7 @@ check_logs() {
           fi
           # Add ip to nginx blocklist if not found
           if ! grep -qw "$ip" "$nginx_blocklist"; then
-            sed -i "/$ip/d" "$nginx_blocklist"
+            sed -i "/^${ip}$/d" "$nginx_blocklist"
             echo "$ip" | tee >> "$nginx_blocklist"
             echo "🚫 IP $ip has been added to the Nginx blocklist."
             echo
