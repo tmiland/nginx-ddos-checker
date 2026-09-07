@@ -273,7 +273,7 @@ while true; do
 
   # Get current time
   currenttime=$(date +%H:%M)
-  if $abuseipdb_report; then
+  if [[ "$abuseipdb_report" == "true" ]]; then
     last_abuseipdb_report=$(find "$abuseipdb_log_folder" -name "abuseipdb_bulk_report_*.json" | sort | tail -n 1 | grep -Po ".*_\K.*\.json" | sed "s|.json||g")
     if [ -f "$abuseipdb_log_folder"/abuseipdb_bulk_report.csv ]; then
       # Get report date from first in report
