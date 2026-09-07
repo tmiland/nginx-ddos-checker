@@ -102,7 +102,7 @@ check_logs() {
   # Loop through all unique IPs and send the data to AbuseIPDB
   for ip in $ips; do
 
-    if [[ "$excluded_ips" =~ $ip ]]; then
+    if [[ " ${excluded_ips//,/ } " == *" $ip "* ]]; then
       echo "ℹ️  Skipping $ip as it is excluded."
       continue
     fi
