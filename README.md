@@ -22,6 +22,8 @@ dependencies beyond standard GNU tooling.
 
 *Example run against simulated attack traffic (RFC 5737 documentation IPs).*
 
+
+**Full write-up on the blog:** https://tmiland.com/nginx-ddos-checker/
 ## Features
 
 - **Per-domain detection** — discovers virtual hosts automatically from
